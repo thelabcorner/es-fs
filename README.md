@@ -114,6 +114,7 @@ Also from the same team: **[ArcFit.dev](https://arcfit.dev)**, deterministic arc
 
 - [Why ESFS?](#why-esfs)
 - [Features](#features)
+- [Get the Release](#get-the-release)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [API](#api)
@@ -151,6 +152,36 @@ Caller path strings pass unchanged to `new File(path)` / `new Folder(path)`. ESF
 - Structured `ESFSError` failures with operation/path/detail and rollback/cleanup context.
 - Portable Node adapter tests plus separately verified live Adobe behavior.
 - Adobe File/Folder remains the default correctness and fallback surface. The preferred native distribution is a self-extracting ESPACK bundle that materializes and adopts an ESABI-backed Windows DLL while leaving the default Adobe methods untouched; binary contents never cross the ExternalObject boundary.
+
+---
+
+## Get the Release
+
+<div align="center">
+
+**All production bundles ship as GitHub release assets — this repo holds
+sources. Grab the runnable builds from the
+[Releases page](https://github.com/thelabcorner/es-fs/releases).**
+
+[![Latest release](https://img.shields.io/github/v/release/thelabcorner/es-fs?display_name=tag)](https://github.com/thelabcorner/es-fs/releases/latest)
+[![Release date](https://img.shields.io/github/release-date/thelabcorner/es-fs)](https://github.com/thelabcorner/es-fs/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/thelabcorner/es-fs/total)](https://github.com/thelabcorner/es-fs/releases)
+
+</div>
+
+**How it works, in three steps:**
+
+1. Open the [Releases page](https://github.com/thelabcorner/es-fs/releases).
+2. Pick the **latest stable** tag.
+3. Download the asset that matches your use case:
+
+| You are... | Take this release | And this asset |
+|---|---|---|
+| Using the Adobe File/Folder correctness surface | Latest stable | `ESFS.jsx` |
+| Wanting a self-contained Windows x64 accelerated bundle | Latest stable | `ESFS.accel.jsx` or `ESFS.accel.min.jsx` |
+| Composing ESFS into an existing ESPACK runtime | Latest stable | `ESFS.facade.jsx` + `ESFS.manifest.json` |
+| Deploying the direct native compatibility lane | Latest stable | `ESFSNative.dll` |
+| Consuming the portable core from Node tooling | Latest stable | `esfs-core.esm.mjs` |
 
 ---
 
