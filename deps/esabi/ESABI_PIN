@@ -1,0 +1,10 @@
+repository=https://github.com/thelabcorner/esabi.git
+commit=65c9c3ce627a26a89d6bf90547678841df0cf981
+version=0.3.1
+abi_revision=1
+profile=Windows-x64-LONG32
+source=vendored-header-snapshot
+esabi_h_sha256=b73b2e300c072c997edbad3a0abdb51f8f1402ea32c704f1546ba4407b8a2f3d
+externalobject_h_sha256=d651f074e1a676776a1d03251a894aa9a3746a86e916a7fd85ee566c6e32d2da
+value_h_sha256=3731023ea38796363051bd93dda66ac2c1d331d4e25cb2feee3403fe0fbba4e8
+license_sha256=d699fef8b91f05371e9d5ee0d351b8fe493b83e58b92c71553e795c35a1733a3

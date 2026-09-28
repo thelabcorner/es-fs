@@ -11,7 +11,7 @@
 [![Engine parity](https://img.shields.io/badge/engine%20parity-Illustrator%2030.6%20%2F%20ES%204.5.6-green)](#validation)
 [![Adobe: Creative Suite](https://img.shields.io/badge/Adobe%20-Creative%20Suite-red?logo=adobe&logoColor=white)](https://extendscript.docsforadobe.dev/)
 [![Engine](https://img.shields.io/badge/ExtendScript-ES3-green)](#compatibility)
-[![Runtime size](https://img.shields.io/badge/runtime-14.3%20KiB-orange)](#installation)
+[![Runtime size](https://img.shields.io/badge/runtime-17.7%20KiB-orange)](#installation)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL%203.0--or--later-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
 
 </div>
@@ -150,7 +150,7 @@ Caller path strings pass unchanged to `new File(path)` / `new Folder(path)`. ESF
 - Best-effort staged replacement with explicit `atomicity` and `durability` result fields plus rollback attempts.
 - Structured `ESFSError` failures with operation/path/detail and rollback/cleanup context.
 - Portable Node adapter tests plus separately verified live Adobe behavior.
-- No production dependency on ESABI, ExternalObject, native DLLs, JSON, or a sibling runtime.
+- Adobe File/Folder remains the default correctness and fallback surface. An explicitly loaded ESABI-backed Windows DLL provides opt-in OS-side file metadata and copy operations; binary contents never cross the ExternalObject boundary.
 
 ---
 
@@ -167,7 +167,7 @@ The build emits:
 - `dist/esfs-core.esm.mjs` — portable core for Node/integration use.
 - `dist/types/` — TypeScript declarations.
 
-The current shipped `dist/ESFS.jsx` is 14,651 bytes. Its final live-evidence SHA-256 is `a9d44931e627ed02fdd31fe9ade97bc6a822491a6fe95226e796a0478ae183d1`.
+The current native-enabled worktree build of `dist/ESFS.jsx` is 18,112 bytes. The preserved `evidence/final-live-evidence.json` belongs to the earlier 14,651-byte reference artifact whose SHA-256 is `a9d44931e627ed02fdd31fe9ade97bc6a822491a6fe95226e796a0478ae183d1`; that historical evidence remains intentionally immutable.
 
 ---
 
@@ -216,6 +216,9 @@ Files and folders are separate inputs; ESFS does not guess which one a path deno
 | `fileExists` / `folderExists` | One object and one `.exists` query. |
 | `statFile` / `statFolder` | Rich metadata only when requested. Missing entries return `exists: false`; file length is read only after existence check and while closed. |
 | `copyFile(source, destination)` | Delegates to one `File.copy()` call; no ESFS read/write buffer. |
+| `ESFS['native'].load(path?)` / `.status()` / `.unload()` | Explicitly loads/statuses/unloads the optional ESABI DLL. No automatic native routing or fallback is implied. |
+| `ESFS['native'].fileExists(file)` / `.fileSize(file)` | OS-side file-only query using `File.fsName`; returns native filesystem observations and reports Win32 errors distinctly. Native paths must be absolute paths accepted by Windows APIs. |
+| `ESFS['native'].copyFile(source, destination)` | OS `CopyFileW` copy with overwrite enabled. Operates on `File.fsName` strings, follows Windows filesystem/reparse-point behavior, and does not claim Adobe alias parity. It throws with the Win32 error code; it does not silently retry through `File.copy()`. |
 | `createDirectory(path)` | One `Folder.create()` call for that level; fails if an ancestor is missing. |
 | `ensureDirectory(path)` | Walks only missing parents, creates from the first existing ancestor downward, returns number created; 0 when already present. |
 | `listDirectory(path, mask?)` | Returns `Folder.getFiles()`'s array directly; `null` means missing, empty array means existing and empty. |
@@ -237,13 +240,17 @@ Reads do not perform an `.exists` preflight. Writes rely on the single `open("w"
 | Check | Command | Result |
 |---|---|---|
 | TypeScript | `npm run typecheck` | pass |
-| Build | `npm run build` | pass; 14,651-byte `dist/ESFS.jsx` |
+| Build | `npm run build` | pass; 18,112-byte native-enabled `dist/ESFS.jsx` |
 | Portable ES3 | `npm run estc:static` | emitted facade + benchmark harness pass |
 | Portable core | `npm test` | 14/14 tests pass |
 | Live parser | `npm run verify:engine` | facade + benchmark harness pass on Illustrator 30.6.0 / ExtendScript 4.5.6 |
 | Bound public-API smoke | recorded in `evidence/final-live-evidence.json` | 20/20 assertions pass with clean filesystem cleanup |
+| Native backend smoke | `npm run native:live:probe` | 9/9 assertions pass, including actual ABI revision 1 and byte-exact NUL copy |
+| Packaged native fallback | `npm run native:release:live` | pass; staged package layout resolves and loads `native/release/ESFSNative.dll` without a manifest |
 
-Final live evidence is captured in `evidence/final-live-evidence.json` against Illustrator 30.6.0 / ExtendScript 4.5.6. The exact artifact above loaded successfully; the public-API smoke passed all 20 assertions and the fair File I/O benchmark completed with clean cleanup.
+Historical reference evidence is captured in `evidence/final-live-evidence.json` against Illustrator 30.6.0 / ExtendScript 4.5.6. That earlier 14,651-byte artifact passed the 20/20 public-API smoke and File I/O benchmark. The new native-enabled worktree is validated separately so the original evidence is not rewritten to imply it covered code that did not yet exist.
+
+The native lane is separately opt-in and has separate gates. `npm run native:build` validates the immutable `deps/esabi/ESABI_PIN`, emits a content-addressed x64 DLL, writes `dist/native/ESFSNative.current`, and refreshes the single stable `dist/native/release/ESFSNative.dll` used by npm packages. `npm run native:build:check` statically checks the live probe and benchmark. `npm run native:live:probe` passed 9 native assertions on Illustrator 30.6.0 / ExtendScript 4.5.6, including actual ABI revision 1, byte-exact copy of NUL/0x80/0xFF data, and Win32 error reporting. `npm run native:release:live` separately proved that the manifest-free packaged layout resolves and loads the stable release DLL. `npm run native:benchmark` compares native `CopyFileW` with Adobe `File.copy()` at 64 KiB and 1 MiB using 2 warmups and 7 timed samples, with exact content verified outside timing.
 
 The two older `evidence/run-*.json` files are preserved control-plane failures from before a runnable local COMTool path was available; they never dispatched the probe.
 
@@ -267,13 +274,24 @@ Live Illustrator 30.6.0 / ExtendScript 4.5.6 medians from `evidence/final-live-e
 
 The measured gain grows with avoided host write calls: at 1 KiB both lanes issue one write and are effectively tied; by 1 MiB the one-write ESFS path is 13.5% lower latency than 64 chunk writes under the same validation-scan contract.
 
+### Optional ESABI native copy lane
+
+Measured live on Illustrator 30.6.0 / ExtendScript 4.5.6 on 2026-09-28. The benchmark uses the same source file for Adobe `File.copy()` and native `CopyFileW`, with two warmups and seven timed samples per lane. Exact content is verified outside the timed region, and the native DLL is unloaded at the end.
+
+| Payload | Adobe `File.copy()` median | Native `CopyFileW` median | Native speedup |
+|---:|---:|---:|---:|
+| 64 KiB | 367 µs | 308 µs | 1.19× |
+| 1 MiB | 2,108 µs | 657 µs | 3.21× |
+
+The 64 KiB difference is small; the 1 MiB result is a clear win for the native copy lane on this host. This does **not** cause automatic routing: `ESFS['native'].copyFile()` remains explicit because Win32 reparse-point/alias semantics are not identical to Adobe `File.copy()`. Live testing also exposed that a previously constructed Adobe `File` object can retain stale metadata after an out-of-band Win32 mutation, so post-native inspection reconstructs the `File` from `.fsName`.
+
 ---
 
 ## Security Model
 
 ESFS is an intentional filesystem mutation primitive. Callers choose File/Folder targets; write, append, copy, rename, replace, and remove operations can change persistent data immediately.
 
-ESFS does not normalize caller paths, follow an implicit cwd, load native code, execute caller-provided code, or depend on a network/IPC service. Replacement is explicitly **best effort**, not crash-atomic: Adobe's documented File/Folder API does not expose an fsync/durable-rename contract, so ESFS reports `durability: "close-confirmed-only"` rather than claiming more.
+Default ESFS operations do not load native code. The opt-in native methods receive only Adobe `File.fsName` paths (UTF-8 text); no binary payload is sent through ExternalObject strings. Native APIs can have OS path, alias, and reparse-point behavior different from Adobe File/Folder. They are separate methods and never alter the default API's semantics. Because native Win32 calls mutate paths outside Adobe's File object, a previously constructed `File` instance can retain stale metadata; reconstruct `new File(file.fsName)` before inspecting metadata after a native mutation. Replacement remains **best effort**, not crash-atomic; no native replacement or fsync/durability claim is made.
 
 Alias/shortcut targets are rejected by staged replacement because Adobe's operation-specific alias behavior differs between open/copy and rename/remove.
 
@@ -284,10 +302,10 @@ Alias/shortcut targets are rejected by staged replacement because Adobe's operat
 | Target | Status |
 |---|---|
 | Conservative ExtendScript ES3 | ESTC static pass |
-| Adobe Illustrator 30.6.0 / ExtendScript 4.5.6 | live parser pass; 20/20 bound smoke assertions in final evidence |
+| Adobe Illustrator 30.6.0 / ExtendScript 4.5.6 | historical 20/20 default-API smoke + current 9/9 native probe pass |
 | File/Folder hosts | runtime requires Adobe `File` and `Folder` support |
 | Node portable core | Node >=20 development/test tooling |
-| Production native dependency | none |
+| Optional native backend | Windows x64 ExternalObject DLL, ESABI 0.3.1 LONG32; not loaded by default |
 
 `Illustrator/2022` Types-for-Adobe is the compile-time baseline, not proof of Illustrator 2022 runtime behavior. Runtime claims are scoped to the explicitly named live host above.
 
@@ -312,7 +330,7 @@ The following are prior measurements from sibling libraries, not ESFS measuremen
 | [ESB64](https://github.com/thelabcorner/es-b64/blob/main/README.md#performance) | Array writes measured about 15–25 µs each in its fixtures; a 47K-write byte pipeline took about 1.7 s. | BINARY I/O moves one whole byte string through one read/write rather than an array-of-bytes pipeline. |
 | [ESON](https://github.com/thelabcorner/eson/blob/main/README.md#performance) | In its measured settings workload, a plain key/value text reader was about 2–4× faster to parse and 13–17× faster to write than ESON JSON. | ESFS stays an I/O primitive rather than taking a JSON dependency. |
 | [ESSTR](https://github.com/thelabcorner/es-str/blob/main/README.md#why-esstr) | `charAt()` returned an empty string for U+0000 on the measured engine. | Binary strings rely on File BINARY semantics; ESFS does not use `charAt` or per-byte conversion. |
-| [ESCHARS](https://github.com/thelabcorner/es-chars/blob/main/README.md#why-eschars) | A pure-JSX per-unit transform pattern wedged at inputs >=128 KiB after two reproductions. | ESFS avoids a JS per-unit binary transform and adds no native lane absent whole-workload evidence. |
+| [ESCHARS](https://github.com/thelabcorner/es-chars/blob/main/README.md#why-eschars) | A pure-JSX per-unit transform pattern wedged at inputs >=128 KiB after two reproductions. | ESFS avoids JS per-unit binary transforms; its native lane keeps payload bytes OS/file-side and is enabled only explicitly where live end-to-end evidence supports it. |
 | [ESTIMER](https://github.com/thelabcorner/es-timer/blob/main/README.md#why-estimer) | `$.hiresTimer` is a delta clock; the first read is not a useful sample. | The benchmark prefers ESTIMER and otherwise primes the raw delta timer immediately before each write. |
 | [ESPACK](https://github.com/thelabcorner/espack/blob/main/README.md#features) | A sibling live test round-tripped all 256 byte values, including NUL, through File `BINARY` mode. | This stayed inherited context; ESFS separately validated NUL, 0x80, and 0xFF in its own live smoke. |
 
@@ -328,7 +346,17 @@ npm test
 npm run verify
 npm run verify:engine
 npm run benchmark:static
+npm run native:build
+npm run native:build:check
+# In Illustrator after building the DLL:
+npm run native:live:probe
+npm run native:release:live
+npm run native:benchmark
 ```
+
+### Native ABI pin
+
+The optional DLL uses ESABI **0.3.1**, ABI revision 1, Windows x64 LONG32 at immutable release commit `65c9c3ce627a26a89d6bf90547678841df0cf981`. The required ESABI headers and license are vendored under `deps/esabi/` with `ESABI_PIN`; the build validates that provenance before compiling. Development DLL names are content-addressed from source + ESABI headers + pin + build recipe + MSVC identity so a newly built generation never needs to overwrite a DLL still mapped by Illustrator. A separate stable `native/release/ESFSNative.dll` copy is packaged for deployment and is used only when the development manifest is absent. Live probes confirmed that `ExternalObject.unload()` does not guarantee an immediate Windows file unlock, so cleanup of loaded generations is deliberately deferred/best-effort.
 
 ### Rollout metadata
 
@@ -337,7 +365,7 @@ npm run benchmark:static
 - ESTC is consumed from the adjacent local `../extendscript-toolchain` checkout and is not a production runtime dependency.
 - Canonical hard edge: `extendscript-toolchain -> esfs` (`build-toolchain`).
 - Canonical validation back-edge: `esfs -> extendscript-toolchain` (`release-test-only`) via the workspace-audit manifest.
-- No ESABI, native, sibling-runtime, composed-bundle, or benchmark-only production edge is declared.
+- Canonical native ABI edge: `esabi -> esfs` (`native-abi`), evidenced by `deps/esabi/ESABI_PIN`, `native/esfs_native.c`, and `scripts/build-native.ps1`.
 - Canonical rollout phase: 1 (`1-bootstrap-and-independent`) after ESTC foundation phase 0.
 - ESTC workspace audit includes `dist/ESFS.jsx` and passes it with zero ESFS warnings/errors.
 - GitHub repository: [thelabcorner/es-fs](https://github.com/thelabcorner/es-fs).
@@ -350,8 +378,11 @@ npm run benchmark:static
 esfs/
 ├─ evidence/                    Preserved live/control-plane evidence
 ├─ scripts/build.mjs            Core/declaration/JSX build
+├─ scripts/build-native.ps1     Pinned-ESABI Windows DLL build
+├─ deps/esabi/                  Immutable ESABI 0.3.1 header snapshot + pin
+├─ native/                      ESABI-backed Win32 source
 ├─ src/                         Core, Adobe adapter, facade, and types
-├─ tests/                       Portable tests, adapter, live probes/benchmark
+├─ tests/                       Portable tests, adapter, live probes/benchmarks
 ├─ extendscript.estc.config.mjs ESTC build profile
 ├─ package.json
 └─ README.md
