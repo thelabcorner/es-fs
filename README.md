@@ -150,7 +150,7 @@ Caller path strings pass unchanged to `new File(path)` / `new Folder(path)`. ESF
 - Best-effort staged replacement with explicit `atomicity` and `durability` result fields plus rollback attempts.
 - Structured `ESFSError` failures with operation/path/detail and rollback/cleanup context.
 - Portable Node adapter tests plus separately verified live Adobe behavior.
-- Adobe File/Folder remains the default correctness and fallback surface. An explicitly loaded ESABI-backed Windows DLL provides opt-in OS-side file metadata and copy operations; binary contents never cross the ExternalObject boundary.
+- Adobe File/Folder remains the default correctness and fallback surface. The preferred native distribution is a self-extracting ESPACK bundle that materializes and adopts an ESABI-backed Windows DLL while leaving the default Adobe methods untouched; binary contents never cross the ExternalObject boundary.
 
 ---
 
@@ -164,10 +164,14 @@ npm run build
 The build emits:
 
 - `dist/ESFS.jsx` — ExtendScript facade installed at `$.global.ESFS`.
+- `dist/ESFS.accel.jsx` / `ESFS.accel.min.jsx` — self-extracting ESPACK distributions embedding `ESFSNative_v1.dll` plus shared `ESB64Native_v2.dll`.
+- `dist/ESFS.facade.jsx` + `ESFS.manifest.json` — loader-free facade and merge/composition contract for a shared ESPACK runtime.
 - `dist/esfs-core.esm.mjs` — portable core for Node/integration use.
 - `dist/types/` — TypeScript declarations.
 
-The current native-enabled worktree build of `dist/ESFS.jsx` is 18,112 bytes. The preserved `evidence/final-live-evidence.json` belongs to the earlier 14,651-byte reference artifact whose SHA-256 is `a9d44931e627ed02fdd31fe9ade97bc6a822491a6fe95226e796a0478ae183d1`; that historical evidence remains intentionally immutable.
+The current native-gate build of `dist/ESFS.jsx` is 18,936 bytes. The preserved `evidence/final-live-evidence.json` belongs to the earlier 14,651-byte reference artifact whose SHA-256 is `a9d44931e627ed02fdd31fe9ade97bc6a822491a6fe95226e796a0478ae183d1`; that historical evidence remains intentionally immutable.
+
+For the self-contained native distribution, run `npm run native:build && npm run build:accel:strict`, then load `dist/ESFS.accel.jsx`. ESPACK extracts/caches the versioned native payload and ESFS adopts that shared handle. Loading the accelerator does **not** replace `ESFS.copyFile`, `fileExists`, or the other Adobe-backed default methods; native filesystem semantics stay under `ESFS['native']`.
 
 ---
 
@@ -216,7 +220,7 @@ Files and folders are separate inputs; ESFS does not guess which one a path deno
 | `fileExists` / `folderExists` | One object and one `.exists` query. |
 | `statFile` / `statFolder` | Rich metadata only when requested. Missing entries return `exists: false`; file length is read only after existence check and while closed. |
 | `copyFile(source, destination)` | Delegates to one `File.copy()` call; no ESFS read/write buffer. |
-| `ESFS['native'].load(path?)` / `.status()` / `.unload()` | Explicitly loads/statuses/unloads the optional ESABI DLL. No automatic native routing or fallback is implied. |
+| `ESFS['native'].load(path?)` / `.status()` / `.unload()` | Direct-DLL compatibility/development lane. The ESPACK artifact adopts its already-loaded handle automatically; `.unload()` detaches from borrowed ESPACK handles without unloading ESPACK's process-wide cache. |
 | `ESFS['native'].fileExists(file)` / `.fileSize(file)` | OS-side file-only query using `File.fsName`; returns native filesystem observations and reports Win32 errors distinctly. Native paths must be absolute paths accepted by Windows APIs. |
 | `ESFS['native'].copyFile(source, destination)` | OS `CopyFileW` copy with overwrite enabled. Operates on `File.fsName` strings, follows Windows filesystem/reparse-point behavior, and does not claim Adobe alias parity. It throws with the Win32 error code; it does not silently retry through `File.copy()`. |
 | `createDirectory(path)` | One `Folder.create()` call for that level; fails if an ancestor is missing. |
@@ -240,17 +244,21 @@ Reads do not perform an `.exists` preflight. Writes rely on the single `open("w"
 | Check | Command | Result |
 |---|---|---|
 | TypeScript | `npm run typecheck` | pass |
-| Build | `npm run build` | pass; 18,112-byte native-enabled `dist/ESFS.jsx` |
+| Build | `npm run build` | pass; 18,936-byte native-gate `dist/ESFS.jsx` |
 | Portable ES3 | `npm run estc:static` | emitted facade + benchmark harness pass |
 | Portable core | `npm test` | 14/14 tests pass |
 | Live parser | `npm run verify:engine` | facade + benchmark harness pass on Illustrator 30.6.0 / ExtendScript 4.5.6 |
 | Bound public-API smoke | recorded in `evidence/final-live-evidence.json` | 20/20 assertions pass with clean filesystem cleanup |
 | Native backend smoke | `npm run native:live:probe` | 9/9 assertions pass, including actual ABI revision 1 and byte-exact NUL copy |
 | Packaged native fallback | `npm run native:release:live` | pass; staged package layout resolves and loads `native/release/ESFSNative.dll` without a manifest |
+| ESPACK byte/provenance contract | `npm run accel:contract` | pass; payload + ESB64Native bytes match build inputs, the bundle contains the current sibling ESB64 runtime byte-for-byte, and the npm whitelist exposes only the stable raw DLL |
+| Accelerator static + live parse | `npm run estc:accel:live` | 3/3 artifacts pass ES3 static checks and live compile-only parsing |
+| Full accelerator behavior | `npm run accel:live` | 11/11 checks pass: adoption, binary-copy parity, default Adobe semantics, ownership, detach/re-adopt |
+| Minified accelerator behavior | `npm run accel:live:min` | same 11/11 live checks pass on the conservative minified artifact |
 
 Historical reference evidence is captured in `evidence/final-live-evidence.json` against Illustrator 30.6.0 / ExtendScript 4.5.6. That earlier 14,651-byte artifact passed the 20/20 public-API smoke and File I/O benchmark. The new native-enabled worktree is validated separately so the original evidence is not rewritten to imply it covered code that did not yet exist.
 
-The native lane is separately opt-in and has separate gates. `npm run native:build` validates the immutable `deps/esabi/ESABI_PIN`, emits a content-addressed x64 DLL, writes `dist/native/ESFSNative.current`, and refreshes the single stable `dist/native/release/ESFSNative.dll` used by npm packages. `npm run native:build:check` statically checks the live probe and benchmark. `npm run native:live:probe` passed 9 native assertions on Illustrator 30.6.0 / ExtendScript 4.5.6, including actual ABI revision 1, byte-exact copy of NUL/0x80/0xFF data, and Win32 error reporting. `npm run native:release:live` separately proved that the manifest-free packaged layout resolves and loads the stable release DLL. `npm run native:benchmark` compares native `CopyFileW` with Adobe `File.copy()` at 64 KiB and 1 MiB using 2 warmups and 7 timed samples, with exact content verified outside timing.
+The raw native lane and ESPACK lane have separate gates. `npm run native:build` validates the immutable `deps/esabi/ESABI_PIN`, emits a content-addressed x64 DLL, writes `dist/native/ESFSNative.current`, and refreshes the stable `dist/native/release/ESFSNative.dll` that also feeds the ESPACK payload. `npm run build:accel:strict` composes against the current sibling ESB64 runtime + ESB64Native v2, emits the manifest/facade/full/minified artifacts, and fails rather than silently skipping missing accelerator inputs. The live accelerator probes additionally prove borrowed-handle ownership: detaching ESFS does not invalidate ESPACK's cached library, and re-adoption sees the same handle.
 
 The two older `evidence/run-*.json` files are preserved control-plane failures from before a runnable local COMTool path was available; they never dispatched the probe.
 
@@ -278,10 +286,10 @@ The measured gain grows with avoided host write calls: at 1 KiB both lanes issue
 
 Measured live on Illustrator 30.6.0 / ExtendScript 4.5.6 on 2026-09-28. The benchmark uses the same source file for Adobe `File.copy()` and native `CopyFileW`, with two warmups and seven timed samples per lane. Exact content is verified outside the timed region, and the native DLL is unloaded at the end.
 
-| Payload | Adobe `File.copy()` median | Native `CopyFileW` median | Native speedup |
+| Payload | Adobe `File.copy()` observed medians | Native `CopyFileW` observed medians | Observed native speedup |
 |---:|---:|---:|---:|
-| 64 KiB | 344 µs | 300 µs | 1.15× |
-| 1 MiB | 1,809 µs | 568 µs | 3.18× |
+| 64 KiB | 344–391 µs | 300–317 µs | 1.15–1.23× |
+| 1 MiB | 1,809–2,055 µs | 557–568 µs | 3.18–3.69× |
 
 The 64 KiB difference is small; the 1 MiB result is a clear win for the native copy lane on this host. This does **not** cause automatic routing: `ESFS['native'].copyFile()` remains explicit because Win32 reparse-point/alias semantics are not identical to Adobe `File.copy()`. Live testing also exposed that a previously constructed Adobe `File` object can retain stale metadata after an out-of-band Win32 mutation, so post-native inspection reconstructs the `File` from `.fsName`.
 
@@ -291,7 +299,9 @@ The 64 KiB difference is small; the 1 MiB result is a clear win for the native c
 
 ESFS is an intentional filesystem mutation primitive. Callers choose File/Folder targets; write, append, copy, rename, replace, and remove operations can change persistent data immediately.
 
-Default ESFS operations do not load native code. The opt-in native methods receive only Adobe `File.fsName` paths (UTF-8 text); no binary payload is sent through ExternalObject strings. Native APIs can have OS path, alias, and reparse-point behavior different from Adobe File/Folder. They are separate methods and never alter the default API's semantics. Because native Win32 calls mutate paths outside Adobe's File object, a previously constructed `File` instance can retain stale metadata; reconstruct `new File(file.fsName)` before inspecting metadata after a native mutation. Replacement remains **best effort**, not crash-atomic; no native replacement or fsync/durability claim is made.
+The base `ESFS.jsx` does not load native code. The self-extracting `ESFS.accel.jsx` intentionally materializes and adopts native code during evaluation, but the native methods still receive only Adobe `File.fsName` paths (UTF-8 text); no binary payload is sent through ExternalObject strings. Native APIs can have OS path, alias, and reparse-point behavior different from Adobe File/Folder, so accelerator activation never rewires the default API's semantics. Because native Win32 calls mutate paths outside Adobe's File object, a previously constructed `File` instance can retain stale metadata; reconstruct `new File(file.fsName)` before inspecting metadata after a native mutation. Replacement remains **best effort**, not crash-atomic; no native replacement or fsync/durability claim is made.
+
+ESPACK owns libraries it materializes and caches. ESFS tracks that ownership explicitly: direct `ESFS['native'].load()` handles are unloadable by ESFS, while an ESPACK-adopted handle is borrowed and `ESFS['native'].unload()` only detaches local state.
 
 Alias/shortcut targets are rejected by staged replacement because Adobe's operation-specific alias behavior differs between open/copy and rename/remove.
 
@@ -306,6 +316,7 @@ Alias/shortcut targets are rejected by staged replacement because Adobe's operat
 | File/Folder hosts | runtime requires Adobe `File` and `Folder` support |
 | Node portable core | Node >=20 development/test tooling |
 | Optional native backend | Windows x64 ExternalObject DLL, ESABI 0.3.1 LONG32; not loaded by default |
+| ESPACK accelerator | Full + minified bundles live-verified with ESB64Native v2 extraction and ESFSNative v1 adoption |
 
 `Illustrator/2022` Types-for-Adobe is the compile-time baseline, not proof of Illustrator 2022 runtime behavior. Runtime claims are scoped to the explicitly named live host above.
 
@@ -347,11 +358,17 @@ npm run verify
 npm run verify:engine
 npm run benchmark:static
 npm run native:build
+npm run build:accel:strict
+npm run accel:contract
+npm run estc:accel:live
+npm run accel:live
+npm run accel:live:min
 npm run native:build:check
 # In Illustrator after building the DLL:
 npm run native:live:probe
 npm run native:release:live
 npm run native:benchmark
+npm run release:gate
 ```
 
 ### Native ABI pin
@@ -366,6 +383,7 @@ The optional DLL uses ESABI **0.3.1**, ABI revision 1, Windows x64 LONG32 at imm
 - Canonical hard edge: `extendscript-toolchain -> esfs` (`build-toolchain`).
 - Canonical validation back-edge: `esfs -> extendscript-toolchain` (`release-test-only`) via the workspace-audit manifest.
 - Canonical native ABI edge: `esabi -> esfs` (`native-abi`), evidenced by `deps/esabi/ESABI_PIN`, `native/esfs_native.c`, and `scripts/build-native.ps1`.
+- Canonical accelerator edges: `espack -> esfs` and `esb64 -> esfs` (`composed-bundle`); both feed the tracked release composition and therefore require recompose/retest on upstream release propagation.
 - Canonical rollout phase: 1 (`1-bootstrap-and-independent`) after ESTC foundation phase 0.
 - ESTC workspace audit includes `dist/ESFS.jsx` and passes it with zero ESFS warnings/errors.
 - GitHub repository: [thelabcorner/es-fs](https://github.com/thelabcorner/es-fs).
@@ -377,7 +395,7 @@ The optional DLL uses ESABI **0.3.1**, ABI revision 1, Windows x64 LONG32 at imm
 ```text
 esfs/
 ├─ evidence/                    Preserved live/control-plane evidence
-├─ scripts/build.mjs            Core/declaration/JSX build
+├─ scripts/build.mjs            Core/declaration/JSX + ESPACK accelerator composition
 ├─ scripts/build-native.ps1     Pinned-ESABI Windows DLL build
 ├─ deps/esabi/                  Immutable ESABI 0.3.1 header snapshot + pin
 ├─ native/                      ESABI-backed Win32 source
