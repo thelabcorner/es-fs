@@ -280,8 +280,8 @@ Measured live on Illustrator 30.6.0 / ExtendScript 4.5.6 on 2026-09-28. The benc
 
 | Payload | Adobe `File.copy()` median | Native `CopyFileW` median | Native speedup |
 |---:|---:|---:|---:|
-| 64 KiB | 367 µs | 308 µs | 1.19× |
-| 1 MiB | 2,108 µs | 657 µs | 3.21× |
+| 64 KiB | 344 µs | 300 µs | 1.15× |
+| 1 MiB | 1,809 µs | 568 µs | 3.18× |
 
 The 64 KiB difference is small; the 1 MiB result is a clear win for the native copy lane on this host. This does **not** cause automatic routing: `ESFS['native'].copyFile()` remains explicit because Win32 reparse-point/alias semantics are not identical to Adobe `File.copy()`. Live testing also exposed that a previously constructed Adobe `File` object can retain stale metadata after an out-of-band Win32 mutation, so post-native inspection reconstructs the `File` from `.fsName`.
 
