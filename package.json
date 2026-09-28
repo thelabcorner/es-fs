@@ -1,0 +1,36 @@
+{
+  "name": "esfs",
+  "version": "0.1.0",
+  "description": "Synchronous, byte-aware File and Folder operations for Adobe ExtendScript (ES3)",
+  "type": "module",
+  "main": "dist/esfs-core.esm.mjs",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esfs-core.esm.mjs"
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:core": "node scripts/build.mjs --core",
+    "test": "npm run build:core && node --test tests/esfs.test.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "estc:static": "node ../extendscript-toolchain/bin/estc.mjs check dist/ESFS.jsx tests/benchmark-file-io.jsx --no-target",
+    "verify": "npm run typecheck && npm run build && npm run estc:static && npm test",
+    "verify:engine": "node ../extendscript-toolchain/bin/estc.mjs check dist/ESFS.jsx tests/benchmark-file-io.jsx --no-target --live",
+    "benchmark:static": "node ../extendscript-toolchain/bin/estc.mjs check tests/benchmark-file-io.jsx --no-target"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thelabcorner/es-fs.git"
+  }
+}

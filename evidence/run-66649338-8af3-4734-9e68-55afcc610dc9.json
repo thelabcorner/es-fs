@@ -1,0 +1,41 @@
+{
+  "kind": "comtool-v2-run",
+  "mode": "run",
+  "classification": "control_failure",
+  "exitCode": 3,
+  "ambiguous": false,
+  "startedAt": "2026-09-28T06:01:36.079Z",
+  "finishedAt": "2026-09-28T06:01:36.088Z",
+  "requestId": "run-66649338-8af3-4734-9e68-55afcc610dc9",
+  "target": null,
+  "script": {
+    "path": "C:\\Program Files\\Adobe\\Adobe Illustrator 2026\\Presets\\en_US\\Scripts\\esfs\\tests\\file-folder-contract-probe.jsx",
+    "sha256": "9f86b57742586a44998afbe343d68146d91019842f71858a28d2502fe3377acc",
+    "effects": "unknown",
+    "watchdogMs": 120000,
+    "argsCount": 0
+  },
+  "lease": null,
+  "operation": null,
+  "transportError": {
+    "name": "ComToolTransportError",
+    "kind": "transport_spawn_failed",
+    "message": "Failed to start COM Tool stdio transport: spawn C:\\Users\\slooshied\\AppData\\Local\\Programs\\ComToolV2\\current\\ComTool.Cli.exe ENOENT",
+    "classification": "transport_not_started",
+    "submitted": false,
+    "requestId": null,
+    "operation": null,
+    "details": null
+  },
+  "cleanupError": null,
+  "error": {
+    "name": "ComToolTransportError",
+    "kind": "transport_spawn_failed",
+    "message": "Failed to start COM Tool stdio transport: spawn C:\\Users\\slooshied\\AppData\\Local\\Programs\\ComToolV2\\current\\ComTool.Cli.exe ENOENT",
+    "classification": "transport_not_started",
+    "submitted": false
+  },
+  "recovery": {
+    "available": false
+  }
+}
