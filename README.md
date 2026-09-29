@@ -11,7 +11,7 @@
 [![Engine parity](https://img.shields.io/badge/engine%20parity-Illustrator%2030.6%20%2F%20ES%204.5.6-green)](#validation)
 [![Adobe: Creative Suite](https://img.shields.io/badge/Adobe%20-Creative%20Suite-red?logo=adobe&logoColor=white)](https://extendscript.docsforadobe.dev/)
 [![Engine](https://img.shields.io/badge/ExtendScript-ES3-green)](#compatibility)
-[![Runtime size](https://img.shields.io/badge/runtime-17.7%20KiB-orange)](#installation)
+[![Runtime size](https://img.shields.io/badge/runtime-18.5%20KiB-orange)](#installation)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL%203.0--or--later-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
 
 </div>
