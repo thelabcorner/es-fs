@@ -195,8 +195,8 @@ npm run build
 The build emits:
 
 - `dist/ESFS.jsx` — ExtendScript facade installed at `$.global.ESFS`.
-- `dist/ESFS.accel.jsx` / `ESFS.accel.min.jsx` — self-extracting ESPACK distributions embedding `ESFSNative_v1.dll` plus shared `ESB64Native_v2.dll`.
-- `dist/ESFS.facade.jsx` + `ESFS.manifest.json` — loader-free facade and merge/composition contract for a shared ESPACK runtime.
+- `dist/ESFS.accel.jsx` / `ESFS.accel.min.jsx` — self-contained ESPACK manifest-v2 compositions with dependency-first `ESB64@1.3.0 -> ESFS@0.2.0` closure, one persistent loader/control plane, `ESFSNative_v1.dll`, and shared `ESB64Native_v2.dll`.
+- `dist/ESFS.facade.jsx` + `ESFS.manifest.json` — loader-free facade and byte-provenanced manifest-v2 composition contract for a shared ESPACK runtime.
 - `dist/esfs-core.esm.mjs` — portable core for Node/integration use.
 - `dist/types/` — TypeScript declarations.
 
@@ -408,7 +408,7 @@ The optional DLL uses ESABI **0.3.1**, ABI revision 1, Windows x64 LONG32 at imm
 
 ### Rollout metadata
 
-- Package: `esfs` 0.1.0; role: runtime primitive; license: GPL-3.0-or-later.
+- Package: `esfs` 0.2.0; role: runtime primitive; license: GPL-3.0-or-later.
 - Build pins: esbuild 0.28.2 and TypeScript 5.9.3; Node >=20.
 - ESTC is consumed from the adjacent local `../extendscript-toolchain` checkout and is not a production runtime dependency.
 - Canonical hard edge: `extendscript-toolchain -> esfs` (`build-toolchain`).

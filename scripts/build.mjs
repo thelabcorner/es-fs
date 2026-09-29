@@ -11,16 +11,18 @@ var CORE_ONLY = process.argv.indexOf('--core') >= 0;
 var REQUIRE_ACCEL = process.argv.indexOf('--require-accel') >= 0;
 var TYPESCRIPT = join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc');
 var ESTC = join(ROOT, '..', 'extendscript-toolchain', 'bin', 'estc.mjs');
-var ESB64_RUNTIME = join(ROOT, '..', 'esb64', 'dist', 'vendor-esb64-runtime.js');
 var ESB64_ACCEL = join(ROOT, '..', 'esb64', 'native', 'bin', 'ESB64Native.dll');
 
 var ACCELERATOR = [
   '',
   '(function () {',
-  '  if (typeof ESPAK !== "object" || !ESPAK || typeof ESPAK.load !== "function") return;',
+  '  var g = null;',
+  '  try { if (typeof $ !== "undefined" && $.global) g = $.global; } catch (ignoreGlobal) {}',
+  '  var P = g && g.ESPAK;',
+  '  if (typeof P !== "object" || !P || typeof P.load !== "function") return;',
   '  if (typeof ESFS !== "object" || !ESFS || typeof ESFS.enableNativeGate !== "function") return;',
   '  function useEspack() {',
-  '    var loaded = ESPAK.load("ESFSNative");',
+  '    var loaded = P.load("ESFSNative");',
   '    if (!loaded.ok || loaded.mode !== "native" || !loaded.lib) {',
   '      return { ok: false, reason: (loaded && loaded.error) || "ESPAK load failed" };',
   '    }',
@@ -39,9 +41,7 @@ var ACCELERATOR = [
   '  }',
   '  ESFS.useEspack = useEspack;',
   '  ESFS.espack = useEspack();',
-  '  var g = null;',
-  '  try { if (typeof $ !== "undefined" && $.global) g = $.global; } catch (ignoreGlobal) {}',
-  '  if (g) { g.ESFS = ESFS; g.ESPAK = ESPAK; }',
+  '  if (g) g.ESFS = ESFS;',
   '}());',
   ''
 ].join('\n');
@@ -106,37 +106,49 @@ function minifyAccel(accelOut) {
   estcCheck('dist/ESFS.accel.min.jsx');
 }
 
-function buildAccel() {
+async function buildAccel() {
   var espackBuild = join(ROOT, '..', 'espack', 'espack-build.mjs');
   var payloadDll = join(DIST, 'native', 'release', 'ESFSNative.dll');
   if (!existsSync(espackBuild)) return accelSkip('sibling espack build tool is unavailable');
   if (!existsSync(payloadDll)) return accelSkip('native release DLL missing; run npm run native:build');
-  if (!existsSync(ESB64_RUNTIME)) return accelSkip('current ESB64 runtime missing; build ../esb64 first');
   if (!existsSync(ESB64_ACCEL)) return accelSkip('current ESB64Native accelerator missing; build ../esb64 native first');
+  var esb64ManifestPath = join(ROOT, '..', 'esb64', 'dist', 'ESB64.manifest.json');
+  if (!existsSync(esb64ManifestPath)) return accelSkip('current ESB64 v2 manifest missing; build ../esb64 first');
 
   var loaderOut = join(DIST, '.esfs-accel-bundle.jsx');
   var manifestOut = join(DIST, 'ESFS.manifest.json');
-  execFileSync(process.execPath, [
-    espackBuild,
-    '--embed', payloadDll,
-    '--out', loaderOut,
-    '--name', 'esfs',
-    '--manifest-out', manifestOut,
-    '--accel', ESB64_ACCEL,
-    '--accel-version', '2',
-    '--quiet'
-  ], {
-    cwd: ROOT,
-    stdio: 'inherit',
-    env: Object.assign({}, process.env, { ESB64_RUNTIME_PATH: ESB64_RUNTIME })
-  });
-
-  var loaderText = readFileSync(loaderOut, 'utf8');
   var facadeText = readFileSync(join(DIST, 'ESFS.jsx'), 'utf8');
   var facadeOut = facadeText + '\n' + ACCELERATOR +
     '// ESFS.facade.jsx - loader-free facade + ESPACK adapter; requires ESPAK on $.global\n';
-  var accelOut = loaderText + '\n' + facadeText + '\n' + ACCELERATOR +
-    '// ESFS.accel.jsx - self-extracting ESPACK bundle + ESFSNative gate\n';
+  writeFileSync(join(DIST, 'ESFS.facade.jsx'), facadeOut, 'utf8');
+  var esb64Manifest = JSON.parse(readFileSync(esb64ManifestPath, 'utf8'));
+  var packageInfo = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  var esb64Package = JSON.parse(readFileSync(join(ROOT, '..', 'esb64', 'package.json'), 'utf8'));
+  var espackBuildApi = await import(new URL('../../espack/espack-build.mjs', import.meta.url).href);
+  var espackMergeApi = await import(new URL('../../espack/espack-merge.mjs', import.meta.url).href);
+  var espackLibraries = await import(new URL('../../espack/espack-libraries.mjs', import.meta.url).href);
+  var payloadBytes = readFileSync(payloadDll);
+  var accelBytes = readFileSync(ESB64_ACCEL);
+  var library = espackLibraries.libraryFromFile({
+    id: 'esfs', version: packageInfo.version, global: 'ESFS', path: join(DIST, 'ESFS.facade.jsx'),
+    requires: [{ id: 'esb64', range: '^' + esb64Package.version }],
+    contract: [{ name: 'readText', type: 'function' }, { name: 'writeText', type: 'function' },
+      { name: 'readBinary', type: 'function' }, { name: 'writeBinary', type: 'function' }],
+    provenance: { package: packageInfo.name, repository: packageInfo.repository && packageInfo.repository.url,
+      commit: gitHead(), artifact: 'dist/ESFS.facade.jsx' }
+  });
+  var ownManifest = espackBuildApi.makeManifest({
+    bundleName: 'esfs', cacheDir: '',
+    payloads: [{ name: 'ESFSNative', version: '1', len: payloadBytes.length,
+      b64: payloadBytes.toString('base64'), fileName: 'ESFSNative_v1.dll' }],
+    accel: { name: 'ESB64Native', version: '2', len: accelBytes.length,
+      b64: accelBytes.toString('base64'), fileName: 'ESB64Native_v2.dll' },
+    libraries: [library], entries: [{ id: 'esfs', range: '=' + packageInfo.version }],
+    capabilities: [{ id: 'esfs.native', provider: 'esfs', mode: 'required', payloads: ['ESFSNative'], accel: null }]
+  });
+  var composed = espackMergeApi.merge({ manifests: [esb64Manifest, ownManifest], out: loaderOut,
+    manifestOut: manifestOut, name: 'esfs', entries: [{ id: 'esfs', range: '=' + packageInfo.version }], deferB64: true });
+  var accelOut = composed.text + '\n// ESFS.accel.jsx - ESPACK v2 flattened ESB64 -> ESFS composition with one loader/control plane\n';
   writeFileSync(join(DIST, 'ESFS.facade.jsx'), facadeOut, 'utf8');
   writeFileSync(join(DIST, 'ESFS.accel.jsx'), accelOut, 'utf8');
   estcCheck('dist/ESFS.facade.jsx');
@@ -145,6 +157,11 @@ function buildAccel() {
   console.log('[esfs-build] wrote ESPACK accelerator, facade, manifest, and minified accelerator');
 }
 
-if (!CORE_ONLY && process.argv.indexOf('--accel') >= 0) buildAccel();
+function gitHead() {
+  try { return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(); }
+  catch (ignore) { return ''; }
+}
+
+if (!CORE_ONLY && process.argv.indexOf('--accel') >= 0) await buildAccel();
 
 console.log('[esfs-build] wrote dist/esfs-core.esm.mjs' + (CORE_ONLY ? '' : ', dist/types, and dist/ESFS.jsx'));
